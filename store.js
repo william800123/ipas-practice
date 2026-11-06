@@ -45,8 +45,8 @@ class PagesStore {
   start(d) {
     const {mode,subject,year}=d,level=d.level||'beginner';
     if(!['beginner','intermediate'].includes(level))throw Error('請選擇級別。');
-    const allowed=level==='beginner'?[0,1,2]:[0,21,22,23];
-    if(!allowed.includes(subject))throw Error('請選擇科目。');
+    const allowed=level==='beginner'?[1,2]:[21,22,23];
+    if(!allowed.includes(subject))throw Error('請先選擇科目。');
     const pool=this.bank.filter(q=>(q.level||'beginner')===level&&(!subject||q.subject===subject)),stats=this.stats();let qs,name,minutes;
     if(mode==='diagnostic'){qs=pool.filter(q=>q.kind==='原創基礎診斷');name='基礎診斷';minutes=qs.length*1.5;}
     else if(mode==='formal'){
@@ -55,7 +55,7 @@ class PagesStore {
       const latest=level==='beginner'?'115-3':'115';
       qs=year==='mixed'?this.shuffle([...this.shuffle(official.filter(q=>QuestionTools.paper(q)==='114')).slice(0,25),...this.shuffle(official.filter(q=>QuestionTools.paper(q)===latest)).slice(0,25)]):year==='shuffled'?this.shuffle(official.filter(q=>QuestionTools.paper(q)==='114')):pool.filter(q=>QuestionTools.paper(q)===year).sort((a,b)=>a.number-b.number);
       if(!qs.length||(year==='mixed'&&qs.length!==50))throw Error('此科目沒有這份試卷，請重新選擇版本。');
-      name=(year==='mixed'?'跨年度混合版':year==='shuffled'?'114 年同卷隨機排序':qs[0].paperName||({'114':'114 年官方考古題','115':'115 年第一次','115-2':'115 年第二次','115-3':'115 年第三次'}[year]||'匯入試卷'))+' · 科目 '+(subject>=21?subject-20:subject);
+      name=(year==='mixed'?'混和版':year==='shuffled'?'114 年同卷隨機排序':qs[0].paperName||({'114':'114 年官方考古題','115':'115 年第一次','115-2':'115 年第二次','115-3':'115 年第三次'}[year]||'匯入試卷'))+' · 科目 '+(subject>=21?subject-20:subject);
       minutes=qs.length*(level==='intermediate'?1.8:1.5);
     } else if(mode==='wrong'){qs=this.shuffle(pool.filter(q=>stats[q.id]?.lastWrong));name='錯題再考';minutes=Math.max(10,qs.length*1.5);}
     else if(mode==='adaptive'){
