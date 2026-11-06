@@ -1,6 +1,10 @@
 'use strict';
 // PDFs are decoded locally. Only explicitly confirmed questions are saved.
 const PdfQuiz={
+ answerTokens(items,marker){
+  const keys=items.filter(i=>/^[A-H](?:[、,，\s]*[A-H])*$/.test(i.s)&&i.x<marker.x-3&&Math.abs(i.y-marker.y)<25).sort((a,b)=>a.y-b.y||a.x-b.x);
+  return [...new Set(keys.flatMap(i=>i.s.replace(/[^A-H]/g,'').split('').map(c=>c.charCodeAt(0)-65)))].sort((a,b)=>a-b);
+ },
  async library(){if(!this.module){this.module=await import(new URL('vendor/pdf.js',document.baseURI).href);this.module.GlobalWorkerOptions.workerSrc=new URL('vendor/pdf.worker.js',document.baseURI).href;}return this.module;},
  textRows(items){
   const rows=[];
@@ -49,8 +53,7 @@ const PdfQuiz={
    if(markers.length>200)throw Error('一次最多匯入 200 題。');
    for(const m of markers){
     const p=pages[m.pi],above=p.rules.filter(y=>y<m.y-6);m.top=above.length?above.at(-1)+1:Math.max(p.body[0],m.y-m.h-4);
-    const keys=p.items.filter(i=>/^[A-H](?:[、,，\s]*[A-H])*$/.test(i.s)&&i.x<m.x-3&&Math.abs(i.y-m.y)<20).sort((a,b)=>Math.abs(a.y-m.y)-Math.abs(b.y-m.y));
-    m.answers=keys.length?[...new Set(keys[0].s.replace(/[^A-H]/g,'').split('').map(c=>c.charCodeAt(0)-65))]:[];
+    m.answers=this.answerTokens(p.items,m);
    }
    const contexts=[];
    for(let pi=0;pi<pages.length;pi++){
@@ -138,13 +141,14 @@ function readPdfEdits(){
  for(const [i,q]of pdfDraft.questions.entries()){
   q.q=$('pq-'+i).value.trim();q.options=$('po-'+i).value.split('\n').map(x=>x.trim()).filter(Boolean);q.type=$('pt-'+i).value;
   const value=$('pa-'+i).value.toUpperCase().normalize('NFKC');
-  q.answers=/^[A-H、,，\s]*$/.test(value)?[...new Set(value.replace(/[^A-H]/g,'').split('').map(c=>c.charCodeAt(0)-65))]:[-1];
+  q.answers=/^[A-H、,，\s]*$/.test(value)?[...new Set(value.replace(/[^A-H]/g,'').split('').map(c=>c.charCodeAt(0)-65))].sort((a,b)=>a-b):[-1];
   q.useImage=$('pi-'+i).checked;
  }
 }
 function pdfProblems(){return pdfDraft.questions.filter(q=>!q.q||q.options.length<2||q.options.length>8||!q.answers.length||q.answers.some(a=>a<0||a>=q.options.length)||(q.type==='single'&&q.answers.length!==1));}
 function pdfPreviewStatus(){
  readPdfEdits();const invalid=pdfProblems(),multi=pdfDraft.questions.filter(q=>q.type==='multiple').length;
+ document.querySelectorAll('.pdf-review').forEach((details,i)=>{const q=pdfDraft.questions[i];details.querySelector('summary').textContent=`第 ${q.number} 題 · ${q.type==='multiple'?'複選':'單選'} · 答案 ${q.answers.map(a=>QuestionTools.letters[a]||'?').join(',')||'待補'}`;});
  $('pdf-review-status').textContent=`共 ${pdfDraft.questions.length} 題：單選 ${pdfDraft.questions.length-multi}、複選 ${multi}。${invalid.length?'仍有 '+invalid.length+' 題需修正題目、選項或答案。':'格式檢查通過，請核對原文後確認匯入。'}`;
  $('pdf-save').disabled=invalid.length>0||!$('pdf-confirm').checked;
 }
