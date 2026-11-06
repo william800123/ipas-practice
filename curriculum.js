@@ -1,7 +1,7 @@
 // Shared grade controls for IIS and the static personal edition.
 const LEVELS={
- beginner:{name:'初級',minutes:75,subjects:{1:'人工智慧基礎概論',2:'生成式 AI 應用與規劃'},years:{115:'115 年第一次',114:'114 年第四梯次',mixed:'混合版 · 114＋115 年'},hint:'兩科各 15 題診斷，共 30 題／45 分鐘。正式模擬每科 50 題／75 分鐘。',count:'30 題原創基礎題＋200 題官方公告考古題。'},
- intermediate:{name:'中級',minutes:90,subjects:{21:'人工智慧技術應用與規劃',22:'大數據處理分析與應用',23:'機器學習技術與應用'},years:{114:'114 年第二梯次',shuffled:'同卷隨機排序 · 114 年'},hint:'科一必考，科二／科三擇一報考；此處三科都可練習。各科 10 題原創診斷，三科共 30 題／45 分鐘。正式模擬每科 50 題／90 分鐘。',count:'30 題原創基礎題＋150 題官方公告考古題；原題圖文保留圖表、公式及程式碼。'}
+ beginner:{name:'初級',minutes:75,subjects:{1:'人工智慧基礎概論',2:'生成式 AI 應用與規劃'},years:{'115-3':'115 年第三次','115-2':'115 年第二次','115':'115 年第一次','114':'114 年第四梯次',mixed:'混合版 · 114＋115 最新'},hint:'兩科各 15 題診斷，共 30 題／45 分鐘。正式模擬每科 50 題／75 分鐘。',count:'30 題原創基礎題＋400 題官方公告考古題。'},
+ intermediate:{name:'中級',minutes:90,subjects:{21:'人工智慧技術應用與規劃',22:'大數據處理分析與應用',23:'機器學習技術與應用'},years:{'115':'115 年第一次','114':'114 年第二梯次',mixed:'混合版 · 114＋115 年',shuffled:'同卷隨機排序 · 114 年'},hint:'科一必考，科二／科三擇一報考；此處三科都可練習。各科 10 題原創診斷，三科共 30 題／45 分鐘。正式模擬每科 50 題／90 分鐘。',count:'30 題原創基礎題＋300 題官方公告考古題；原題圖文保留圖表、公式及程式碼。'}
 };
 function selectedLevel(){return document.getElementById('level').value;}
 function questionLevel(q){return q.level||(q.subject>=21?'intermediate':'beginner');}
@@ -13,12 +13,21 @@ function levelMetrics(){
  $('metric-wrong').innerHTML=`${Object.entries(stats).filter(([id,s])=>ids.has(id)&&s.lastWrong).length} <small>題</small>`;
  $('metric-time').innerHTML=`${Math.floor(records.reduce((s,r)=>s+(r.durationSeconds??0),0)/60)} <small>分鐘</small>`;
 }
-function versionHint(){const l=LEVELS[selectedLevel()];$('version-hint').textContent=$('year').value==='mixed'?'混合版：114、115 年各抽 25 題，隨機排列，共 50 題／75 分鐘。':$('year').value==='shuffled'?'同卷隨機排序：使用同一份 114 年第二梯次的 50 題，90 分鐘；不是跨年度混合卷。':`完整模擬考請選一科，每份 50 題、${l.minutes} 分鐘。`;}
+function updatePaperOptions(preferred){
+ const l=LEVELS[selectedLevel()],value=preferred||$('year').value,choices={...l.years};
+ for(const q of bank)if(questionLevel(q)===selectedLevel()&&q.setId&&(!$('subject').value||$('subject').value==='0'||q.subject===+$('subject').value))choices[q.paper]='匯入 · '+(q.paperName||q.source);
+ $('year').innerHTML=Object.entries(choices).map(([id,name])=>`<option value="${esc(id)}">${esc(name)}</option>`).join('');
+ $('year').value=choices[value]?value:selectedLevel()==='beginner'?'115-3':'115';versionHint();
+}
+function versionHint(){
+ const level=selectedLevel(),l=LEVELS[level],year=$('year').value;
+ const qs=bank.filter(q=>questionLevel(q)===level&&q.subject===+$('subject').value&&QuestionTools.paper(q)===year);
+ $('version-hint').textContent=year==='mixed'?`混合版：114 年與 115 年${level==='beginner'?'第三次':'第一次'}各抽 25 題，共 50 題／${l.minutes} 分鐘。`:year==='shuffled'?'同卷隨機排序：114 年第二梯次同一份 50 題，90 分鐘。':year.startsWith('pdf-')?`匯入卷：${qs.length} 題，${Math.round(qs.length*(level==='beginner'?1.5:1.8)*10)/10} 分鐘；按原題單選／複選作答。`:`完整模擬考請選一科，每份 50 題、${l.minutes} 分鐘。`;
+}
 function updateLevel(){
  const l=LEVELS[selectedLevel()];
  $('subject').innerHTML='<option value="0">本級全部科目一起練</option>'+Object.entries(l.subjects).map(([id,name])=>`<option value="${id}">${name}</option>`).join('');
- $('year').innerHTML=Object.entries(l.years).map(([id,name])=>`<option value="${id}">${name}</option>`).join('');
- $('year').value=selectedLevel()==='beginner'?'115':'114';
+ updatePaperOptions(selectedLevel()==='beginner'?'115-3':'115');
  $('level-hint').textContent=l.hint;
  const welcome=document.querySelector('.welcome p');
  // Rebuild the course chips when changing grade, keeping the welcome artwork intact.
@@ -34,6 +43,8 @@ function updateLevel(){
 function wireLevels(){
  updateLevel();$('year').onchange=versionHint;
  document.querySelectorAll('[data-choose-level]').forEach(button=>button.onclick=()=>chooseLevel(button.dataset.chooseLevel));
+ $('pdf-import').onclick=()=>{showPdfImport();jump();};
+ $('subject').onchange=()=>updatePaperOptions();
  $('sprint').onclick=()=>{showSprint();jump();};
  $('level').onchange=()=>{
   if(pendingAnswer||finishing){if(exam)$('level').value=examLevel(exam);notify('正在儲存作答，請稍後切換級別。');return;}
@@ -74,7 +85,7 @@ const SPRINT={
    {subject:23,focus:'選考機器學習：監督模型 → 分群降維 → 神經網路 → 驗證與程式判讀。',checks:['分清 KNN、SVM、樹、Bagging 與 Boosting；訓練與驗證差距用來判斷偏差／變異問題。','K-means 受尺度與起點影響；DBSCAN 看密度與雜訊；PCA 以最大變異降維，NMF 要求逐元素非負。','神經元 z=Σ(wᵢxᵢ)+b，梯度決定更新方向；辨認 CNN、RNN、LSTM 的結構及任務。','程式題先看輸入 shape、索引、axis、資料切分與每行輸出；交叉驗證選模型，最終測試集留到最後。']}
   ],
   traps:[['Recall 勘誤','Recall=TP/(TP+FN)，不能把分母寫成 TP+FP。'],['邏輯迴歸勘誤','線性關係指特徵與對數勝算，不表示原資料必須線性可分。'],['NMF 與神經元勘誤','非負是每個元素不小於零；加權和使用對應的 wᵢxᵢ，最後加偏置 b。'],['圖表與題組','先看共用資料、單位及程式碼，再判讀選項；可點圖放大，不能只靠題目文字猜測。']],
-  days:[['第 1 階段｜確定選科','先做科一與自己的選考科診斷，各 10 題；檢討錯誤，列出最弱的三個主題。'],['第 2 階段｜科一完整卷','補語言／視覺技術與導入規劃，再做科一 50 題／90 分鐘原卷。'],['第 3 階段｜選考科完整卷','大數據重統計、資料處理及管線；機器學習重模型、驗證及程式。完成選考科原卷並檢討。'],['考前一天｜公式與程式','重考仍錯的題，口述公式的分子分母及程式輸入輸出；同卷隨機排序仍是舊題，不當作新題能力驗證。']]
+  days:[['第 1 階段｜確定選科','先做科一與自己的選考科診斷，各 10 題；檢討錯誤，列出最弱的三個主題。'],['第 2 階段｜科一完整卷','補語言／視覺技術與導入規劃，再做科一 50 題／90 分鐘原卷。'],['第 3 階段｜選考科完整卷','大數據重統計、資料處理及管線；機器學習重模型、驗證及程式。完成選考科原卷並檢討。'],['考前一天｜公式與程式','重考仍錯的題，口述公式的分子分母及程式輸入輸出；保留另一年度原卷驗證理解；同卷隨機排序仍是舊題，不當作新題能力驗證。']]
  }
 };
 function showSprint(){
